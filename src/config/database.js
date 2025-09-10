@@ -8,6 +8,12 @@ const sequelize = new Sequelize({
   username: config.database.username,
   password: config.database.password,
   dialect: "postgres",
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false,
+    },
+  },
   logging: config.env === "development" ? console.log : false,
   pool: {
     max: 10,

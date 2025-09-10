@@ -24,7 +24,7 @@ class EmailService {
       fullName: userName,
       otp: otp,
       currentYear: new Date().getFullYear(),
-      logoURL: this.getLogoURL(), // Replace with your actual logo URL
+      logoURL: this.getLogoURL(), 
     };
 
     try {
