@@ -24,7 +24,7 @@ class EmailService {
       fullName: userName,
       otp: otp,
       currentYear: new Date().getFullYear(),
-      logoURL: this.getLogoURL(), 
+      logoURL: this.getLogoURL(),
     };
 
     try {
@@ -45,6 +45,42 @@ class EmailService {
 
       await sgMail.send(message);
       console.log(`✅ P-Value OTP email sent to ${emailID}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Email send failed:`, error.message);
+      throw error;
+    }
+  }
+
+  // NEW: Reset Password Email
+  static async sendResetPasswordEmail(emailID, resetLink, userName) {
+    this.initialize();
+
+    const variables = {
+      fullName: userName,
+      resetLink: resetLink,
+      currentYear: new Date().getFullYear(),
+      logoURL: this.getLogoURL(),
+    };
+
+    try {
+      const htmlContent = await TemplateService.processTemplate(
+        "resetPasswordTemplate.html",
+        variables
+      );
+
+      const message = {
+        to: emailID,
+        from: {
+          email: process.env.EMAIL_FROM,
+          name: process.env.EMAIL_FROM_NAME,
+        },
+        subject: "🔐 Password Reset Request - P Value",
+        html: htmlContent,
+      };
+
+      await sgMail.send(message);
+      console.log(`✅ Reset password email sent to ${emailID}`);
       return true;
     } catch (error) {
       console.error(`❌ Email send failed:`, error.message);

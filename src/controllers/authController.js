@@ -1,4 +1,5 @@
 import { Op } from "sequelize";
+import crypto from "node:crypto";
 import User from "../models/User.js";
 import OtpVerification from "../models/OtpVerification.js";
 import AuthService from "../services/authService.js";
@@ -91,66 +92,69 @@ class AuthController {
     }
   }
 
-  static async sendResetOtp(req, res) {
+  // NEW: Send Reset Link
+  static async sendResetLink(req, res) {
     try {
       const { emailID } = req.body;
 
-      if (!emailID || !/\S+@\S+\.\S+/.test(emailID)) {
-        return ApiResponse.error(res, "Valid email is required", 400);
-      }
+      // if (!emailID || !/\S+@\S+\.\S+/.test(emailID)) {
+      //   return ApiResponse.error(res, "Valid email is required", 400);
+      // }
 
       const user = await User.findOne({ where: { emailID, isActive: true } });
       if (!user) {
         return ApiResponse.success(
           res,
           null,
-          "If account exists, OTP has been sent to your email"
+          "If account exists, a reset link has been sent to your email"
         );
       }
 
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      // Generate unique token (64 characters)
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
+      // Delete old tokens
       await OtpVerification.destroy({
         where: { userId: user.id, purpose: "PASSWORD_RESET", isUsed: false },
       });
 
+      // Store token
       await OtpVerification.create({
         userId: user.id,
         emailID,
-        otp,
+        otp: resetToken, // Using 'otp' field to store token
         purpose: "PASSWORD_RESET",
         expiresAt,
         ipAddress: req.ip || "unknown",
       });
 
-      await EmailService.sendOtpEmail(
+      // Send email with reset link
+      const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+      await EmailService.sendResetPasswordEmail(
         emailID,
-        otp,
+        resetLink,
         `${user.firstName} ${user.lastName}`
       );
 
       return ApiResponse.success(
         res,
-        { expiresIn: "10 minutes" },
-        "OTP sent to your email successfully"
+        { expiresIn: "30 minutes" },
+        "Password reset link sent to your email"
       );
     } catch (error) {
-      console.error("Send OTP error:", error);
-      return ApiResponse.error(res, "Failed to send OTP", 500);
+      console.error("Send reset link error:", error);
+      return ApiResponse.error(res, "Failed to send reset link", 500);
     }
   }
 
-  static async resetPasswordWithOtp(req, res) {
+  // NEW: Reset Password with Token
+  static async resetPassword(req, res) {
     try {
-      const { emailID, otp, newPassword } = req.body;
+      const { token, newPassword } = req.body;
 
-      if (!emailID || !/\S+@\S+\.\S+/.test(emailID)) {
-        return ApiResponse.error(res, "Valid email is required", 400);
-      }
-
-      if (!otp || otp.length !== 6 || !/^\d{6}$/.test(otp)) {
-        return ApiResponse.error(res, "Valid 6-digit OTP is required", 400);
+      if (!token) {
+        return ApiResponse.error(res, "Reset token is required", 400);
       }
 
       if (!newPassword || newPassword.length < 6) {
@@ -161,27 +165,28 @@ class AuthController {
         );
       }
 
-      const otpRecord = await OtpVerification.findOne({
+      // Find valid token
+      const tokenRecord = await OtpVerification.findOne({
         where: {
-          emailID,
-          otp,
+          otp: token,
           purpose: "PASSWORD_RESET",
           isUsed: false,
           expiresAt: { [Op.gt]: new Date() },
         },
       });
 
-      if (!otpRecord) {
-        return ApiResponse.error(res, "Invalid or expired OTP", 400);
+      if (!tokenRecord) {
+        return ApiResponse.error(res, "Invalid or expired reset link", 400);
       }
 
-      const user = await User.findByPk(otpRecord.userId);
+      const user = await User.findByPk(tokenRecord.userId);
       if (!user) {
         return ApiResponse.error(res, "User not found", 404);
       }
 
+      // Update password (will be hashed by User model hook)
       await user.update({ password: newPassword });
-      await otpRecord.update({ isUsed: true });
+      await tokenRecord.update({ isUsed: true });
 
       return ApiResponse.success(res, null, "Password reset successfully");
     } catch (error) {
@@ -189,7 +194,6 @@ class AuthController {
       return ApiResponse.error(res, "Failed to reset password", 500);
     }
   }
-  
 }
 
 export default AuthController;

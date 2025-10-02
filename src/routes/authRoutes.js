@@ -21,7 +21,8 @@ router.post("/roles-create", async (req, res) => {
 });
 
 router.get("/profile", authenticateToken, AuthController.getProfile);
-router.post("/send-reset-otp", AuthController.sendResetOtp);
-router.post("/reset-password-otp", AuthController.resetPasswordWithOtp);
+// NEW: Password Reset Routes
+router.post("/forgot-password", AuthController.sendResetLink);
+router.post("/reset-password", AuthController.resetPassword);
 
 export default router;

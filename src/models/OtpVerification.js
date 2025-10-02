@@ -21,7 +21,7 @@ const OtpVerification = sequelize.define(
       },
     },
     otp: {
-      type: DataTypes.STRING(6),
+      type: DataTypes.STRING(255),
       allowNull: false,
     },
     purpose: {
