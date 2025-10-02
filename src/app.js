@@ -39,6 +39,10 @@ const limiter = rateLimit({
 });
 app.use("/api", limiter);
 
+app.get("/", (req, res) => {
+  res.send("I am alive");
+});
+
 // Serve static images from public/images folder
 app.use("/images", express.static(path.join(__dirname, "../public/images")));
 
