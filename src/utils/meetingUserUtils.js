@@ -1,6 +1,23 @@
 import { Op } from "sequelize";
 import { sequelize } from "../config/database.js";
 import Meeting from "../models/Meeting.js";
+import moment from "moment";
+
+// Supported date formats for parsing
+const DATE_FORMATS = [
+  "YYYY-MM-DD HH:mm:ss",
+  "YYYY-MM-DDTHH:mm:ss",
+  "MM/DD/YYYY hh:mm A",
+  "MM-DD-YYYY hh:mm A",
+  "MM-DD-YYYY HH:mm",
+  "MM-DD-YYYY HH:mm:ss",
+  "DD-MM-YYYY HH:mm:ss",
+  moment.ISO_8601,
+];
+
+export function parseDateTime(dateStr) {
+  return dateStr ? moment(dateStr, DATE_FORMATS, true).toDate() : null;
+}
 
 // Case-insensitive LIKE helper
 export const ciLike = (col, val) =>
@@ -184,3 +201,78 @@ export const buildMeetingInclude = (meetingNameFilter) => {
     }),
   };
 };
+
+// Validates array of meeting users for bulk creation
+export function isValidateMeetingUser(users) {
+  // Check if input is array
+  if (!Array.isArray(users)) {
+    return { valid: false, errors: ["Input must be an array"] };
+  }
+
+  const errors = [];
+
+  // Regex patterns for validation
+  const patterns = {
+    email: /^[\w.-]+@[\w.-]+\.\w+$/,
+    number: /^\d+$/,
+    // Supports: YYYY-MM-DD HH:mm:ss, ISO 8601, MM/DD/YYYY hh:mm AM/PM
+    date: /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}(:\d{2})?(\.\d{3})?Z?$|^\d{2}[-/]\d{2}[-/]\d{4}\s\d{2}:\d{2}(:\d{2})?(\s(AM|PM))?$/,
+  };
+
+  // Field configuration: [fields, validator, errorMsg]
+  const validations = [
+    // Required fields
+    [
+      ["MeetingID", "FirstName", "LastName", "EmailId", "PhoneNumber"],
+      (u, f) => !u[f],
+      (f, i) => `${f} required at index ${i}`,
+    ],
+
+    // Email validation
+    [
+      ["EmailId"],
+      (u, f) => u[f] && !patterns.email.test(u[f]),
+      (f, i) => `Invalid EmailId at index ${i}`,
+    ],
+
+    // Optional string fields
+    [
+      [
+        "CarrierCode",
+        "AttendeeType",
+        "OriginAirport",
+        "DestinationAirport",
+        "FlightLabel",
+      ],
+      (u, f) => u[f] != null && typeof u[f] !== "string",
+      (f, i) => `${f} must be string at index ${i}`,
+    ],
+
+    // Optional numeric fields
+    [
+      ["DepartureFlightNumber", "ArrivalFlightNumber"],
+      (u, f) => u[f] != null && !patterns.number.test(String(u[f])),
+      (f, i) => `${f} must be numeric at index ${i}`,
+    ],
+
+    // Date fields
+    [
+      ["DepartureDateTime", "ArrivalDateTime"],
+      (u, f) => u[f] != null && !patterns.date.test(String(u[f])),
+      (f, i) => `${f} format invalid at index ${i}`,
+    ],
+  ];
+
+  // Run all validations
+  users.forEach((user, i) => {
+    validations.forEach(([fields, validator, errorMsg]) => {
+      fields.forEach((field) => {
+        if (validator(user, field)) {
+          errors.push(errorMsg(field, i));
+        }
+      });
+    });
+  });
+
+  return { valid: errors.length === 0, errors };
+}

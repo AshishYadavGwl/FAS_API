@@ -2,6 +2,11 @@ import Meeting from "../models/Meeting.js";
 import { literal, Op } from "sequelize";
 
 class MeetingService {
+  // Create new meeting
+  static async createMeeting(data) {
+    return await Meeting.create(data);
+  }
+
   // Get all non-deleted meetings
   static async getAllMeetings() {
     return await Meeting.findAll({
@@ -20,11 +25,6 @@ class MeetingService {
         IsDeleted: false,
       },
     });
-  }
-
-  // Create new meeting
-  static async createMeeting(data) {
-    return await Meeting.create(data);
   }
 
   // Update meeting

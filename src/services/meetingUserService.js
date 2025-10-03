@@ -7,7 +7,9 @@ import {
   buildFilterConditions,
   buildSortOrder,
   buildMeetingInclude,
+  parseDateTime,
 } from "../utils/meetingUserUtils.js";
+import moment from "moment";
 
 const meetingInclude = {
   model: Meeting,
@@ -17,6 +19,25 @@ const meetingInclude = {
 };
 
 class MeetingUserService {
+  // Create bulk meeting user
+  static async createMeetingUsers(usersData) {
+    try {
+      const processedData = usersData.map((user) => ({
+        ...user,
+        DepartureDateTime: parseDateTime(user.DepartureDateTime),
+        ArrivalDateTime: parseDateTime(user.ArrivalDateTime),
+        IsActive: user.IsActive ?? true,
+        IsDeleted: user.IsDeleted ?? false,
+        CreateDate: new Date(),
+      }));
+
+      return await MeetingUser.bulkCreate(processedData, { validate: true });
+    } catch (error) {
+      console.error("Service createMeetingUsers error:", error);
+      throw error;
+    }
+  }
+
   // Get all meeting users with meeting details
   static async getAllMeetingUsers() {
     try {
@@ -61,24 +82,6 @@ class MeetingUserService {
     } catch (error) {
       console.error("💥 Service getMeetingUsersByMeetingId error:", error);
       throw error; // Let controller handle it
-    }
-  }
-
-  // Create meeting user with validation
-  static async createMeetingUser(data) {
-    try {
-      // Validate MeetingID if provided
-      if (data.MeetingID) {
-        const meetingExists = await Meeting.findByPk(data.MeetingID);
-        if (!meetingExists) {
-          throw new Error(`Meeting with ID ${data.MeetingID} does not exist`);
-        }
-      }
-
-      return await MeetingUser.create(data);
-    } catch (error) {
-      console.error("Service createMeetingUser error:", error);
-      throw error;
     }
   }
 

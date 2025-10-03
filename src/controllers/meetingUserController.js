@@ -1,11 +1,44 @@
-import MeetingUserHelper from "../helper/meetingUserHelper.js";
 import alertService from "../services/alertService.js";
-import EventHubService from "../services/eventHubService.js";
-import flightAlertService from "../services/flightAlertService.js";
 import MeetingUserService from "../services/meetingUserService.js";
+import { isValidateMeetingUser } from "../utils/meetingUserUtils.js";
 import ApiResponse from "../utils/response.js";
 
 class MeetingUserController {
+  // Create bulk meeting user
+  static async createMeetingUser(req, res) {
+    try {
+      const usersData = req.body;
+
+      const { valid, errors } = isValidateMeetingUser(usersData);
+
+      if (!valid) {
+        return ApiResponse.error(
+          res,
+          `Validation failed: ${errors.join(", ")}`,
+          400
+        );
+      }
+
+      const createdUsers = await MeetingUserService.createMeetingUsers(
+        usersData
+      );
+
+      return ApiResponse.success(
+        res,
+        createdUsers,
+        "Meeting users created successfully",
+        201
+      );
+    } catch (error) {
+      console.error("Controller error:", error.message);
+      return ApiResponse.error(
+        res,
+        error.message || "Failed to create meeting users",
+        500
+      );
+    }
+  }
+
   // Helper function to format exact response as per requirement
   static formatMeetingUserResponse(meetingUser) {
     return {
@@ -156,94 +189,6 @@ class MeetingUserController {
       }
 
       return ApiResponse.error(res, "Failed to fetch meeting users", 500);
-    }
-  }
-
-  // POST /api/meetingusers - Create new meeting user
-  static async createMeetingUser(req, res) {
-    try {
-      console.log("🚀 Creating meeting user...");
-      console.log("📥 Request body:", JSON.stringify(req.body, null, 2));
-
-      // Basic validation
-      if (!req.body.EmailId && !req.body.PhoneNumber) {
-        return ApiResponse.error(
-          res,
-          "EmailId or PhoneNumber is required",
-          400
-        );
-      }
-
-      // Prepare complete data object
-      const createData = {
-        FirstName: req.body.FirstName || null,
-        LastName: req.body.LastName || null,
-        EmailId: req.body.EmailId || null,
-        PhoneNumber: req.body.PhoneNumber || null,
-        AttendeeType: req.body.AttendeeType || null,
-        DepartureAirline: req.body.DepartureAirline || null,
-        ArrivalAirline: req.body.ArrivalAirline || null,
-        DepartureFlightNumber: req.body.DepartureFlightNumber || null,
-        ArrivalFlightNumber: req.body.ArrivalFlightNumber || null,
-        DepartureDateTime: req.body.DepartureDateTime
-          ? new Date(req.body.DepartureDateTime)
-          : null,
-        ArrivalDateTime: req.body.ArrivalDateTime
-          ? new Date(req.body.ArrivalDateTime)
-          : null,
-        OriginAirport: req.body.OriginAirport || null,
-        DestinationAirport: req.body.DestinationAirport || null,
-        MeetingID: req.body.MeetingID || null,
-        CarrierCode: req.body.CarrierCode || null,
-        CodeType: req.body.CodeType || null,
-        FlightType: req.body.FlightType || null,
-        FlightLabel: req.body.FlightLabel || null,
-        LastSyncDateTime: req.body.LastSyncDateTime
-          ? new Date(req.body.LastSyncDateTime)
-          : null,
-        AlertId: req.body.AlertId || null,
-        Status: req.body.Status || null,
-        State: req.body.State || null,
-        EmailSend: req.body.EmailSend || false,
-        SmsSend: req.body.SmsSend || false,
-        CarrierName: req.body.CarrierName || null,
-        Notificationcount: req.body.Notificationcount || 0,
-        LastSyncDateTimeUtc: req.body.LastSyncDateTimeUtc
-          ? new Date(req.body.LastSyncDateTimeUtc)
-          : null,
-        MessageTimestamp: req.body.MessageTimestamp
-          ? new Date(req.body.MessageTimestamp)
-          : null,
-        MessageId: req.body.MessageId || null,
-        CreatedBy: req.body.CreatedBy || "System",
-        CreateDate: new Date(),
-        IsDeleted: false,
-        IsActive: true,
-      };
-
-      const newMeetingUser = await MeetingUserService.createMeetingUser(
-        createData
-      );
-      // await flightAlertService.createAlertsForUsers(newMeetingUser.Id);
-      console.log(
-        `✅ Meeting user created successfully with ID: ${newMeetingUser.Id}`
-      );
-
-      // Get the created user with meeting details for response
-      const createdUser = await MeetingUserService.getMeetingUserById(
-        newMeetingUser.Id
-      );
-      const responseData =
-        MeetingUserController.formatMeetingUserResponse(createdUser);
-
-      return ApiResponse.success(
-        res,
-        responseData,
-        "Meeting user created successfully",
-        201
-      );
-    } catch (error) {
-      return ApiResponse.error(res, "Failed to create meeting user", 500);
     }
   }
 

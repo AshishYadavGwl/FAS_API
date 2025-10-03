@@ -5,6 +5,42 @@ import MeetingService from "../services/meetingService.js";
 import ApiResponse from "../utils/response.js";
 
 class MeetingController {
+  // POST /api/meetings - Create new meeting
+  static async createMeeting(req, res) {
+    try {
+      const { meetingName, createdBy, emailAlert, smsAlert } = req.body;
+
+      // Validation
+      if (!meetingName || !createdBy) {
+        return ApiResponse.error(
+          res,
+          "Meeting name and creator are required",
+          400
+        );
+      }
+
+      const meetingData = {
+        MeetingName: meetingName,
+        CreatedBy: createdBy,
+        EmailAlert: emailAlert || false,
+        SmsAlert: smsAlert || false,
+        CreateDate: new Date(),
+      };
+
+      const newMeeting = await MeetingService.createMeeting(meetingData);
+
+      return ApiResponse.success(
+        res,
+        newMeeting,
+        "Meeting created successfully",
+        201
+      );
+    } catch (error) {
+      console.error("Create meeting error:", error);
+      return ApiResponse.error(res, "Failed to create meeting", 500);
+    }
+  }
+
   // GET /api/meetings/paginated
   static async getPaginatedMeetings(req, res) {
     try {
@@ -105,57 +141,6 @@ class MeetingController {
     } catch (error) {
       console.error("Get meeting error:", error);
       return ApiResponse.error(res, "Failed to fetch meeting", 500);
-    }
-  }
-
-  // POST /api/meetings - Create new meeting
-  static async createMeeting(req, res) {
-    try {
-      const { meetingName, createdBy, emailAlert, smsAlert } = req.body;
-
-      // Validation
-      if (!meetingName || !createdBy) {
-        return ApiResponse.error(
-          res,
-          "Meeting name and creator are required",
-          400
-        );
-      }
-
-      const meetingData = {
-        MeetingName: meetingName,
-        CreatedBy: createdBy,
-        EmailAlert: emailAlert || false,
-        SmsAlert: smsAlert || false,
-        CreateDate: new Date(),
-      };
-
-      const newMeeting = await MeetingService.createMeeting(meetingData);
-
-      const formattedMeeting = {
-        id: newMeeting.Id,
-        meetingName: newMeeting.MeetingName,
-        createdBy: newMeeting.CreatedBy,
-        createDate: newMeeting.CreateDate,
-        emailAlert: newMeeting.EmailAlert,
-        smsAlert: newMeeting.SmsAlert,
-        emailState: newMeeting.EmailState,
-        emailStatus: newMeeting.EmailStatus,
-        smsState: newMeeting.SmsState,
-        smsStatus: newMeeting.SmsStatus,
-        modifiedBy: newMeeting.ModifiedBy,
-        modifiedDate: newMeeting.ModifiedDate,
-      };
-
-      return ApiResponse.success(
-        res,
-        formattedMeeting,
-        "Meeting created successfully",
-        201
-      );
-    } catch (error) {
-      console.error("Create meeting error:", error);
-      return ApiResponse.error(res, "Failed to create meeting", 500);
     }
   }
 
