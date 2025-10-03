@@ -31,14 +31,6 @@ app.use(express.json({ limit: "10mb" }));
 // Parse form data from requests
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting - max 100 requests per 15 minutes per IP
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: "Too many requests, please try again later",
-});
-app.use("/api", limiter);
-
 app.get("/", (req, res) => {
   res.send("I am alive");
 });
