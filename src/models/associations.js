@@ -1,10 +1,25 @@
+import User from "./User.js";
+import OtpVerification from "./OtpVerification.js";
 import Meeting from "./Meeting.js";
 import MeetingUser from "./MeetingUser.js";
 
-// Define associations here to avoid circular imports
+// User -> OTP (One-to-Many) - User can have multiple OTP records
+User.hasMany(OtpVerification, {
+  foreignKey: "userId",
+  as: "otpRecords",
+  onDelete: "CASCADE",
+});
+
+OtpVerification.belongsTo(User, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+// Meeting -> MeetingUser (One-to-Many) - Meeting has attendees
 Meeting.hasMany(MeetingUser, {
   foreignKey: "MeetingID",
   as: "MeetingUsers",
+  onDelete: "CASCADE",
 });
 
 MeetingUser.belongsTo(Meeting, {
@@ -12,4 +27,4 @@ MeetingUser.belongsTo(Meeting, {
   as: "Meeting",
 });
 
-export { Meeting, MeetingUser };
+export { User, OtpVerification, Meeting, MeetingUser };

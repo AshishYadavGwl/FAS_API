@@ -1,24 +1,26 @@
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
-import Role from "../models/Role.js";
+import User, { ROLES } from "../models/User.js";
 import config from "../config/config.js";
-import { ERROR_MESSAGES } from "../utils/constants.js";
 
 class AuthService {
-  static generateToken(userId) {
-    return jwt.sign({ userId }, config.jwt.secret, {
-      expiresIn: config.jwt.expire,
+  // Register user
+  static async register(data) {
+    const {
+      firstName,
+      lastName,
+      emailID,
+      password,
+      mobileNo,
+      role = ROLES.VIEWER,
+    } = data;
+
+    const existingUser = await User.findOne({
+      where: { emailID },
+      attributes: ["id"],
     });
-  }
+    if (existingUser) throw new Error("Email exists");
 
-  static async register(userData) {
-    const { firstName, lastName, emailID, password, mobileNo, roleId } =
-      userData;
-
-    const existingUser = await User.findOne({ where: { emailID } });
-    if (existingUser) {
-      throw new Error(ERROR_MESSAGES.EMAIL_EXISTS);
-    }
+    if (![1, 2, 3].includes(role)) throw new Error("Invalid role");
 
     const user = await User.create({
       firstName,
@@ -26,48 +28,41 @@ class AuthService {
       emailID,
       password,
       mobileNo,
-      roleId,
+      role,
     });
-
-    const token = this.generateToken(user.id);
+    const token = this.generateToken(user.id, user.role);
 
     return { user, token };
   }
 
+  // Login user
   static async login(emailID, password) {
     const user = await User.findOne({
       where: { emailID, isActive: true },
     });
 
-    if (!user) {
-      throw new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
+    if (!user || !(await user.comparePassword(password))) {
+      throw new Error("Invalid credentials");
     }
 
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      throw new Error(ERROR_MESSAGES.INVALID_CREDENTIALS);
-    }
-
-    await user.update({ lastLogin: new Date() });
-
-    const token = this.generateToken(user.id);
+    const token = this.generateToken(user.id, user.role);
 
     return { user, token };
   }
 
-  static async getAllRoles() {
-    const roles = await Role.findAll({
-      attributes: ["id", "name", "description"],
-      order: [["name", "ASC"]],
+  // Generate jwt auth token
+  static generateToken(userId, role) {
+    return jwt.sign({ userId, role }, config.jwt.secret, {
+      expiresIn: config.jwt.expire,
     });
-    return roles;
   }
 
+  // Verify Jwt token
   static verifyToken(token) {
     try {
       return jwt.verify(token, config.jwt.secret);
-    } catch (error) {
-      throw new Error(ERROR_MESSAGES.INVALID_TOKEN);
+    } catch {
+      throw new Error("Invalid token");
     }
   }
 }

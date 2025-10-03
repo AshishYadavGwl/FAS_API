@@ -1,171 +1,128 @@
 import { Op } from "sequelize";
 import crypto from "node:crypto";
+import { sequelize } from "../config/database.js";
 import User from "../models/User.js";
 import OtpVerification from "../models/OtpVerification.js";
 import AuthService from "../services/authService.js";
 import EmailService from "../services/emailService.js";
 import ApiResponse from "../utils/response.js";
 import {
-  HTTP_STATUS,
-  SUCCESS_MESSAGES,
-  ERROR_MESSAGES,
-} from "../utils/constants.js";
+  validateLogin,
+  validateRegister,
+  validateResetPassword,
+} from "../utils/authUtils.js";
 
 class AuthController {
+  // Login user
+  // AY
+  static async login(req, res) {
+    const { emailID, password } = req.body;
+    const validation = validateLogin(emailID, password);
+
+    if (!validation.isValid)
+      return ApiResponse.error(res, validation.error, 400);
+
+    try {
+      const { user, token } = await AuthService.login(emailID, password);
+      return ApiResponse.success(res, { user, token }, "Login successful");
+    } catch (error) {
+      return ApiResponse.error(
+        res,
+        error.message,
+        error.message === "Invalid credentials" ? 401 : 500
+      );
+    }
+  }
+
+  // Register User
+  // AY
   static async register(req, res) {
+    const validation = validateRegister(req.body);
+
+    if (!validation.isValid)
+      return ApiResponse.error(res, validation.error, 400);
+
     try {
       const { user, token } = await AuthService.register(req.body);
-
-      return ApiResponse.success(
-        res,
-        { user, token },
-        SUCCESS_MESSAGES.USER_REGISTERED,
-        HTTP_STATUS.CREATED
-      );
+      return ApiResponse.success(res, { user, token }, "User registered", 201);
     } catch (error) {
-      if (error.message === ERROR_MESSAGES.EMAIL_EXISTS) {
-        return ApiResponse.error(res, error.message, HTTP_STATUS.CONFLICT);
-      }
-
       return ApiResponse.error(
         res,
-        ERROR_MESSAGES.SERVER_ERROR,
-        HTTP_STATUS.INTERNAL_SERVER_ERROR
+        error.message,
+        error.message === "Email exists" ? 409 : 500
       );
     }
   }
 
-  static async login(req, res) {
-    try {
-      const { emailID, password } = req.body;
-      const { user, token } = await AuthService.login(emailID, password);
-
-      return ApiResponse.success(
-        res,
-        { user, token },
-        SUCCESS_MESSAGES.LOGIN_SUCCESS
-      );
-    } catch (error) {
-      if (error.message === ERROR_MESSAGES.INVALID_CREDENTIALS) {
-        return ApiResponse.error(res, error.message, HTTP_STATUS.UNAUTHORIZED);
-      }
-
-      return ApiResponse.error(
-        res,
-        ERROR_MESSAGES.SERVER_ERROR,
-        HTTP_STATUS.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  static async getProfile(req, res) {
-    try {
-      return ApiResponse.success(
-        res,
-        { user: req.user },
-        "Profile retrieved successfully"
-      );
-    } catch (error) {
-      return ApiResponse.error(
-        res,
-        ERROR_MESSAGES.SERVER_ERROR,
-        HTTP_STATUS.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  static async getRoles(req, res) {
-    try {
-      const roles = await AuthService.getAllRoles();
-
-      return ApiResponse.success(
-        res,
-        { roles },
-        "Roles retrieved successfully"
-      );
-    } catch (error) {
-      return ApiResponse.error(
-        res,
-        ERROR_MESSAGES.SERVER_ERROR,
-        HTTP_STATUS.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  // NEW: Send Reset Link
+  // Send Reset Link
   static async sendResetLink(req, res) {
+    const { emailID } = req.body;
+
+    if (!emailID?.trim()) return ApiResponse.error(res, "Email required", 400);
+
     try {
-      const { emailID } = req.body;
+      const user = await User.findOne({
+        where: { emailID, isActive: true },
+        attributes: ["id", "firstName", "lastName"],
+      });
 
-      // if (!emailID || !/\S+@\S+\.\S+/.test(emailID)) {
-      //   return ApiResponse.error(res, "Valid email is required", 400);
-      // }
-
-      const user = await User.findOne({ where: { emailID, isActive: true } });
       if (!user) {
         return ApiResponse.success(
           res,
           null,
-          "If account exists, a reset link has been sent to your email"
+          "Reset link sent if account exists"
         );
       }
 
-      // Generate unique token (64 characters)
-      const resetToken = crypto.randomBytes(32).toString("hex");
-      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 1800000);
 
-      // Delete old tokens
-      await OtpVerification.destroy({
-        where: { userId: user.id, purpose: "PASSWORD_RESET", isUsed: false },
+      await sequelize.transaction(async (t) => {
+        await OtpVerification.destroy({
+          where: { userId: user.id, purpose: "PASSWORD_RESET", isUsed: false },
+          transaction: t,
+        });
+
+        await OtpVerification.create(
+          {
+            userId: user.id,
+            emailID,
+            otp: token,
+            purpose: "PASSWORD_RESET",
+            expiresAt,
+            ipAddress: req.ip || "unknown",
+            userAgent: req.get("user-agent"),
+          },
+          { transaction: t }
+        );
       });
 
-      // Store token
-      await OtpVerification.create({
-        userId: user.id,
-        emailID,
-        otp: resetToken, // Using 'otp' field to store token
-        purpose: "PASSWORD_RESET",
-        expiresAt,
-        ipAddress: req.ip || "unknown",
-      });
-
-      // Send email with reset link
-      const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-      await EmailService.sendResetPasswordEmail(
+      const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+      EmailService.sendResetPasswordEmail(
         emailID,
         resetLink,
         `${user.firstName} ${user.lastName}`
-      );
+      ).catch(() => {});
 
       return ApiResponse.success(
         res,
         { expiresIn: "30 minutes" },
-        "Password reset link sent to your email"
+        "Reset link sent"
       );
     } catch (error) {
-      console.error("Send reset link error:", error);
       return ApiResponse.error(res, "Failed to send reset link", 500);
     }
   }
 
-  // NEW: Reset Password with Token
+  // Reset Password
   static async resetPassword(req, res) {
+    const { token, newPassword } = req.body;
+    const validation = validateResetPassword(token, newPassword);
+
+    if (!validation.isValid)
+      return ApiResponse.error(res, validation.error, 400);
+
     try {
-      const { token, newPassword } = req.body;
-
-      if (!token) {
-        return ApiResponse.error(res, "Reset token is required", 400);
-      }
-
-      if (!newPassword || newPassword.length < 6) {
-        return ApiResponse.error(
-          res,
-          "Password must be at least 6 characters long",
-          400
-        );
-      }
-
-      // Find valid token
       const tokenRecord = await OtpVerification.findOne({
         where: {
           otp: token,
@@ -173,10 +130,11 @@ class AuthController {
           isUsed: false,
           expiresAt: { [Op.gt]: new Date() },
         },
+        attributes: ["id", "userId"],
       });
 
       if (!tokenRecord) {
-        return ApiResponse.error(res, "Invalid or expired reset link", 400);
+        return ApiResponse.error(res, "Invalid or expired token", 400);
       }
 
       const user = await User.findByPk(tokenRecord.userId);
@@ -184,13 +142,15 @@ class AuthController {
         return ApiResponse.error(res, "User not found", 404);
       }
 
-      // Update password (will be hashed by User model hook)
-      await user.update({ password: newPassword });
-      await tokenRecord.update({ isUsed: true });
+      await sequelize.transaction(async (t) => {
+        await Promise.all([
+          user.update({ password: newPassword }, { transaction: t }),
+          tokenRecord.update({ isUsed: true }, { transaction: t }),
+        ]);
+      });
 
-      return ApiResponse.success(res, null, "Password reset successfully");
+      return ApiResponse.success(res, null, "Password reset successful");
     } catch (error) {
-      console.error("Reset password error:", error);
       return ApiResponse.error(res, "Failed to reset password", 500);
     }
   }

@@ -215,7 +215,6 @@ export function isValidateMeetingUser(users) {
   const patterns = {
     email: /^[\w.-]+@[\w.-]+\.\w+$/,
     number: /^\d+$/,
-    // Supports: YYYY-MM-DD HH:mm:ss, ISO 8601, MM/DD/YYYY hh:mm AM/PM
     date: /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}(:\d{2})?(\.\d{3})?Z?$|^\d{2}[-/]\d{2}[-/]\d{4}\s\d{2}:\d{2}(:\d{2})?(\s(AM|PM))?$/,
   };
 

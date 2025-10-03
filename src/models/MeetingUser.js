@@ -10,15 +10,15 @@ const MeetingUser = sequelize.define(
       primaryKey: true,
     },
     FirstName: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     LastName: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     EmailId: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
       validate: {
         isEmail: true,
@@ -29,23 +29,23 @@ const MeetingUser = sequelize.define(
       allowNull: true,
     },
     AttendeeType: {
-      type: DataTypes.STRING(100),
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
     DepartureAirline: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     ArrivalAirline: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     DepartureFlightNumber: {
-      type: DataTypes.STRING(50),
+      type: DataTypes.STRING(20),
       allowNull: true,
     },
     ArrivalFlightNumber: {
-      type: DataTypes.STRING(50),
+      type: DataTypes.STRING(20),
       allowNull: true,
     },
     DepartureDateTime: {
@@ -75,7 +75,7 @@ const MeetingUser = sequelize.define(
       allowNull: false,
     },
     CreatedBy: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     CreateDate: {
@@ -84,7 +84,7 @@ const MeetingUser = sequelize.define(
       allowNull: false,
     },
     ModifiedBy: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     ModifiedDate: {
@@ -98,8 +98,6 @@ const MeetingUser = sequelize.define(
         model: "Meeting",
         key: "Id",
       },
-      onUpdate: "CASCADE",
-      onDelete: "SET NULL",
     },
     CarrierCode: {
       type: DataTypes.STRING(50),
@@ -122,15 +120,15 @@ const MeetingUser = sequelize.define(
       allowNull: true,
     },
     AlertId: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     Status: {
-      type: DataTypes.STRING(100),
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
     State: {
-      type: DataTypes.STRING(100),
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
     EmailSend: {
@@ -144,11 +142,11 @@ const MeetingUser = sequelize.define(
       allowNull: false,
     },
     CarrierName: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     Notificationcount: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.SMALLINT,
       defaultValue: 0,
       allowNull: false,
     },
@@ -161,7 +159,7 @@ const MeetingUser = sequelize.define(
       allowNull: true,
     },
     MessageId: {
-      type: DataTypes.STRING(255),
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
   },
@@ -170,13 +168,35 @@ const MeetingUser = sequelize.define(
     timestamps: false,
     indexes: [
       {
-        fields: ["MeetingID"],
+        name: "idx_meeting_active",
+        fields: ["MeetingID", "IsDeleted", "IsActive"],
       },
       {
-        fields: ["EmailId"],
+        name: "idx_email_search",
+        fields: ["EmailId", "IsDeleted"],
       },
       {
-        fields: ["IsDeleted", "IsActive"],
+        name: "idx_departure_tracking",
+        fields: ["DepartureFlightNumber", "DepartureDateTime", "IsDeleted"],
+      },
+      {
+        name: "idx_arrival_tracking",
+        fields: ["ArrivalFlightNumber", "ArrivalDateTime", "IsDeleted"],
+      },
+      {
+        name: "idx_status_filter",
+        fields: ["Status", "State", "IsDeleted"],
+      },
+      {
+        name: "idx_notification",
+        fields: ["EmailSend", "SmsSend", "IsDeleted"],
+      },
+      {
+        name: "idx_alert",
+        fields: ["AlertId", "IsDeleted"],
+      },
+      {
+        fields: ["CreateDate"],
       },
     ],
   }

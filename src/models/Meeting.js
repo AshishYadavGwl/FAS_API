@@ -10,7 +10,7 @@ const Meeting = sequelize.define(
       primaryKey: true,
     },
     MeetingName: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(200),
       allowNull: false,
     },
     IsDeleted: {
@@ -22,7 +22,7 @@ const Meeting = sequelize.define(
       defaultValue: true,
     },
     CreatedBy: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(100),
       allowNull: false,
     },
     CreateDate: {
@@ -30,7 +30,7 @@ const Meeting = sequelize.define(
       defaultValue: DataTypes.NOW,
     },
     ModifiedBy: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(100),
       allowNull: true,
     },
     ModifiedDate: {
@@ -46,25 +46,45 @@ const Meeting = sequelize.define(
       defaultValue: false,
     },
     EmailState: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
     EmailStatus: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
     SmsState: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
     SmsStatus: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(50),
       allowNull: true,
     },
   },
   {
     tableName: "Meeting",
     timestamps: false,
+    indexes: [
+      {
+        name: "idx_active_meetings",
+        fields: ["IsDeleted", "IsActive"],
+      },
+      {
+        name: "idx_meeting_name",
+        fields: ["MeetingName", "IsDeleted"],
+      },
+      {
+        name: "idx_alerts",
+        fields: ["EmailAlert", "SmsAlert", "IsDeleted"],
+      },
+      {
+        fields: ["CreatedBy", "IsDeleted"],
+      },
+      {
+        fields: ["CreateDate"],
+      },
+    ],
   }
 );
 

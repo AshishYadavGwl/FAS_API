@@ -4,6 +4,7 @@ import TemplateService from "./templateService.js";
 class EmailService {
   static initialized = false;
 
+  // Initialize SendGrid API once
   static initialize() {
     if (!this.initialized) {
       sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -11,81 +12,55 @@ class EmailService {
     }
   }
 
-  static getLogoURL() {
-    const baseURL = process.env.BASE_URL || "http://localhost:3000";
-    return `${baseURL}/images/logo-with-text.png`;
+  // Base method for sending emails
+  static async sendEmail(to, subject, template, variables) {
+    this.initialize();
+
+    try {
+      // Process HTML template with variables
+      const html = await TemplateService.processTemplate(template, {
+        ...variables,
+        currentYear: new Date().getFullYear(),
+        logoURL: `${
+          process.env.BASE_URL || "http://localhost:3000"
+        }/images/logo-with-text.png`,
+      });
+
+      // Send email via SendGrid
+      await sgMail.send({
+        to,
+        from: {
+          email: process.env.EMAIL_FROM,
+          name: process.env.EMAIL_FROM_NAME,
+        },
+        subject,
+        html,
+      });
+
+      return true;
+    } catch (error) {
+      throw error;
+    }
   }
 
+  // Send OTP verification email
   static async sendOtpEmail(emailID, otp, userName) {
-    this.initialize();
-
-    // Variables for your exact template
-    const variables = {
-      fullName: userName,
-      otp: otp,
-      currentYear: new Date().getFullYear(),
-      logoURL: this.getLogoURL(),
-    };
-
-    try {
-      const htmlContent = await TemplateService.processTemplate(
-        "otpVerificationTemplate.html",
-        variables
-      );
-
-      const message = {
-        to: emailID,
-        from: {
-          email: process.env.EMAIL_FROM,
-          name: process.env.EMAIL_FROM_NAME,
-        },
-        subject: "🔐 Password Reset Verification Code - P Value",
-        html: htmlContent,
-      };
-
-      await sgMail.send(message);
-      console.log(`✅ P-Value OTP email sent to ${emailID}`);
-      return true;
-    } catch (error) {
-      console.error(`❌ Email send failed:`, error.message);
-      throw error;
-    }
+    return this.sendEmail(
+      emailID,
+      "Password Reset Verification Code - P Value",
+      "otpVerificationTemplate.html",
+      { fullName: userName, otp }
+    );
   }
 
-  // NEW: Reset Password Email
+  // Send password reset link email
   static async sendResetPasswordEmail(emailID, resetLink, userName) {
-    this.initialize();
-
-    const variables = {
-      fullName: userName,
-      resetLink: resetLink,
-      currentYear: new Date().getFullYear(),
-      logoURL: this.getLogoURL(),
-    };
-
-    try {
-      const htmlContent = await TemplateService.processTemplate(
-        "resetPasswordTemplate.html",
-        variables
-      );
-
-      const message = {
-        to: emailID,
-        from: {
-          email: process.env.EMAIL_FROM,
-          name: process.env.EMAIL_FROM_NAME,
-        },
-        subject: "🔐 Password Reset Request - P Value",
-        html: htmlContent,
-      };
-
-      await sgMail.send(message);
-      console.log(`✅ Reset password email sent to ${emailID}`);
-      return true;
-    } catch (error) {
-      console.error(`❌ Email send failed:`, error.message);
-      throw error;
-    }
+    return this.sendEmail(
+      emailID,
+      "Password Reset Request - P Value",
+      "resetPasswordTemplate.html",
+      { fullName: userName, resetLink }
+    );
   }
 }
 

@@ -1,6 +1,8 @@
 import { Sequelize } from "sequelize";
 import config from "./config.js";
 
+const isProd = config.env === "production";
+
 const sequelize = new Sequelize({
   host: config.database.host,
   port: config.database.port,
@@ -14,26 +16,40 @@ const sequelize = new Sequelize({
       rejectUnauthorized: false,
     },
   },
-  logging: config.env === "development" ? console.log : false,
+  logging: config.logging ? console.log : false,
+
   pool: {
-    max: 10,
-    min: 0,
-    acquire: 30000,
-    idle: 10000,
+    max: isProd ? 20 : 10, // More connections in production
+    min: isProd ? 5 : 2, // Keep minimum alive
+    acquire: 60000, // Increased timeout (60s)
+    idle: 10000, // Close idle connections after 10s
+    evict: 1000, // Check for idle connections every 1s
+    maxUses: 5000, // Close connection after 5000 uses
+  },
+
+  benchmark: config.logging,
+  define: {
+    timestamps: true,
+    underscored: false,
+    freezeTableName: true,
+  },
+  retry: {
+    max: 3,
   },
 });
 
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log("✅ PostgreSQL connected successfully");
+    if (config.logging) console.log("Database connected");
 
-    if (config.env === "development") {
+    // Only sync in development
+    if (!isProd) {
       await sequelize.sync({ alter: true });
-      console.log("✅ Database synced");
+      if (config.logging) console.log("Database synced");
     }
   } catch (error) {
-    console.error("❌ Database connection failed:", error.message);
+    console.error("Database connection failed:", error.message);
     process.exit(1);
   }
 };
