@@ -13,9 +13,12 @@ router.get("/paginated", MeetingUserController.getPaginatedMeetingUsers);
 router.get("/:id", MeetingUserController.getMeetingUserById);
 
 // GET: api/meetingusers/meeting/:id → Get all users for a specific meeting
-router.get("/meeting/:id", MeetingUserController.getMeetingUsersByMeetingId);
+router.get(
+  "/meeting/:meetingId",
+  MeetingUserController.getMeetingUsersByMeetingId
+);
 
 // PUT: api/meetingusers/edit/:id → Update meeting user by ID
-router.put("/edit/:id", MeetingUserController.updateMeetingUser);
+router.put("/edit", MeetingUserController.updateMeetingUsers);
 
 export default router;

@@ -155,40 +155,28 @@ class MeetingUserController {
   }
 
   // Update meeting user
-  static async updateMeetingUser(req, res) {
+  // AY
+  static async updateMeetingUsers(req, res) {
     try {
-      const { id } = req.params;
-      console.log(`🔄 Updating meeting user ID: ${id}`);
-
-      const updateData = { ...req.body };
-
-      // Convert camelCase to PascalCase for database
-      const mappedData = {};
-      Object.keys(updateData).forEach((key) => {
-        const dbKey = key.charAt(0).toUpperCase() + key.slice(1);
-        mappedData[dbKey] = updateData[key];
-      });
-
-      const updatedMeetingUser = await MeetingUserService.updateMeetingUser(
-        id,
-        mappedData
-      );
-
-      if (!updatedMeetingUser) {
-        return ApiResponse.error(res, "Meeting user not found", 404);
+      const { meetingId, users } = req.body;
+      if (!meetingId || !users || !Array.isArray(users)) {
+        return ApiResponse.error(res, "Invalid input", 400);
       }
-      // await flightAlertService.createAlertsForUsers(id);
-      // Get updated user with meeting details
-      const updatedUser = await MeetingUserService.getMeetingUserById(id);
 
-      return ApiResponse.success(
-        res,
-        updatedUser,
-        "Meeting user updated successfully"
+      const result = await MeetingUserService.updateMeetingUser(
+        meetingId,
+        users
       );
+      return ApiResponse.success(res, result, "Success", 200);
     } catch (error) {
-      console.error("❌ Controller updateMeetingUser error:", error);
-      return ApiResponse.error(res, "Failed to update meeting user", 500);
+      return error.missingIds
+        ? ApiResponse.error(
+            res,
+            `Attendee Not Found: IDs ${error.missingIds.join(", ")} not found`,
+            404,
+            { missingIds: error.missingIds }
+          )
+        : ApiResponse.error(res, error.message, 500);
     }
   }
 }

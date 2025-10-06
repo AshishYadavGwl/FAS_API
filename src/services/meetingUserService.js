@@ -9,6 +9,7 @@ import {
   buildMeetingInclude,
   parseDateTime,
 } from "../utils/meetingUserUtils.js";
+import { sequelize } from "../config/database.js";
 
 const meetingInclude = {
   model: Meeting,
@@ -126,23 +127,123 @@ class MeetingUserService {
     return await MeetingUser.findAll({
       where,
       include: [meetingInclude],
-      order: [["CreatedAt", "DESC"]],
+      order: [["CreateDate", "DESC"]],
       raw: false,
       nest: true,
     });
   }
 
   // Update meeting user
-  static async updateMeetingUser(id, data) {
+  // AY
+  static async updateMeetingUser(meetingId, usersData) {
+    const t = await sequelize.transaction();
+
     try {
-      const meetingUser = await MeetingUser.findByPk(id);
-      if (meetingUser && !meetingUser.IsDeleted) {
-        data.ModifiedDate = new Date();
-        return await meetingUser.update(data);
+      const toUpdate = usersData.filter((u) => u.ID);
+      const toCreate = usersData.filter((u) => !u.ID);
+
+      // Step 1: Validate IDs
+      if (toUpdate.length > 0) {
+        const ids = toUpdate.map((u) => u.ID);
+        const existing = await MeetingUser.findAll({
+          where: { Id: ids, IsDeleted: false },
+          attributes: ["Id"],
+          transaction: t,
+          raw: true,
+        });
+
+        const missingIds = ids.filter(
+          (id) => !existing.find((e) => e.Id === id)
+        );
+        if (missingIds.length > 0) {
+          const err = new Error("Attendee Not Found");
+          err.missingIds = missingIds;
+          throw err;
+        }
+        // Step 2: Bulk update
+        const d = {
+          ids,
+          fn: toUpdate.map((u) => u.FirstName || ""),
+          ln: toUpdate.map((u) => u.LastName || ""),
+          em: toUpdate.map((u) => u.EmailId || ""),
+          ph: toUpdate.map((u) => String(u.PhoneNumber || "")),
+          at: toUpdate.map((u) => u.AttendeeType || ""),
+          cc: toUpdate.map((u) => u.CarrierCode || ""),
+          df: toUpdate.map((u) => String(u.DepartureFlightNumber || "")),
+          dt: toUpdate.map((u) => parseDateTime(u.DepartureDateTime)),
+          art: toUpdate.map((u) => parseDateTime(u.ArrivalDateTime)),
+          oa: toUpdate.map((u) => u.OriginAirport || ""),
+          da: toUpdate.map((u) => u.DestinationAirport || ""),
+          fl: toUpdate.map((u) => u.FlightLabel || ""),
+        };
+
+        await sequelize.query(
+          `
+        UPDATE "MeetingUser" m SET 
+          "FirstName" = u.fn, "LastName" = u.ln, "EmailId" = u.em,
+          "PhoneNumber" = u.ph, "AttendeeType" = u.at, "CarrierCode" = u.cc,
+          "DepartureFlightNumber" = u.df,
+          "DepartureDateTime" = u.dt::timestamptz, "ArrivalDateTime" = u.art::timestamptz,
+          "OriginAirport" = u.oa, "DestinationAirport" = u.da, "FlightLabel" = u.fl,
+          "ModifiedDate" = NOW(), "MeetingID" = ${meetingId}
+        FROM (SELECT * FROM UNNEST(
+          $1::int[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[],
+          $7::text[], $8::text[], $9::text[], $10::text[], $11::text[], $12::text[], $13::text[]
+        ) AS t(id, fn, ln, em, ph, at, cc, df, dt, art, oa, da, fl)) u
+        WHERE m."Id" = u.id
+      `,
+          {
+            bind: [
+              d.ids,
+              d.fn,
+              d.ln,
+              d.em,
+              d.ph,
+              d.at,
+              d.cc,
+              d.df,
+              d.dt,
+              d.art,
+              d.oa,
+              d.da,
+              d.fl,
+            ],
+            transaction: t,
+          }
+        );
       }
-      return null;
+
+      // Step 3: Bulk create (removed ArrivalFlightNumber)
+      const created =
+        toCreate.length > 0
+          ? await MeetingUser.bulkCreate(
+              toCreate.map((u) => ({
+                FirstName: u.FirstName,
+                LastName: u.LastName,
+                EmailId: u.EmailId,
+                PhoneNumber: String(u.PhoneNumber || ""),
+                AttendeeType: u.AttendeeType,
+                CarrierCode: u.CarrierCode,
+                DepartureFlightNumber: String(u.DepartureFlightNumber || ""),
+                DepartureDateTime: parseDateTime(u.DepartureDateTime),
+                ArrivalDateTime: parseDateTime(u.ArrivalDateTime),
+                OriginAirport: u.OriginAirport,
+                DestinationAirport: u.DestinationAirport,
+                FlightLabel: u.FlightLabel,
+                CreatedBy: u.CreatedBy,
+                IsActive: true,
+                IsDeleted: false,
+                CreateDate: new Date(),
+                MeetingID: meetingId,
+              })),
+              { validate: true, transaction: t }
+            )
+          : [];
+
+      await t.commit();
+      return { updated: toUpdate.length, created: created.length };
     } catch (error) {
-      console.error("Service updateMeetingUser error:", error);
+      await t.rollback();
       throw error;
     }
   }
