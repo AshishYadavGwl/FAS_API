@@ -162,6 +162,15 @@ const MeetingUser = sequelize.define(
       type: DataTypes.STRING(100),
       allowNull: true,
     },
+    LastSequenceNumber: {
+      type: DataTypes.BIGINT,
+      allowNull: true,
+      defaultValue: 0,
+    },
+    LastEventOffset: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
   },
   {
     tableName: "MeetingUser",
@@ -194,6 +203,10 @@ const MeetingUser = sequelize.define(
       {
         name: "idx_alert",
         fields: ["AlertId", "IsDeleted"],
+      },
+      {
+        name: "idx_alert_sequence",
+        fields: ["AlertId", "LastSequenceNumber", "IsDeleted"],
       },
       {
         fields: ["CreateDate"],

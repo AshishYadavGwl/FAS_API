@@ -1,6 +1,5 @@
 import { Router } from "express";
 import eventHubService from "../services/eventHub.service.js";
-import EmailService from "../services/email.service.js";
 import CheckAlertService from "../WebjobService/checkAlertService.js";
 
 const router = Router();
@@ -104,6 +103,29 @@ router.post("/restart", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to restart service",
+      error: error.message,
+    });
+  }
+});
+
+// Search specific alert
+router.get("/search/:alertId", async (req, res) => {
+  try {
+    const { alertId } = req.params;
+    const hours = parseInt(req.query.hours) || 24;
+
+    console.log(`\n🔍 API Request: Alert ${alertId}, Lookback ${hours}h`);
+
+    const result = await CheckAlertService.searchAlertInEventHub(
+      alertId,
+      hours
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error("❌ Route error:", error);
+    res.status(500).json({
+      success: false,
       error: error.message,
     });
   }

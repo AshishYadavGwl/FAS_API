@@ -96,6 +96,8 @@ class EventHubService {
         "AlertId",
         "Status",
         "State",
+        "LastSequenceNumber",
+        "LastEventOffset",
         "FirstName",
         "LastName",
         "EmailId",
@@ -118,6 +120,8 @@ class EventHubService {
         lastName: u.LastName,
         status: u.Status,
         state: u.State,
+        lastSequenceNumber: u.LastSequenceNumber || 0,
+        lastEventOffset: u.LastEventOffset,
         emailId: u.EmailId,
         carrierCode: u.CarrierCode,
         flightNumber: u.DepartureFlightNumber,
@@ -190,6 +194,8 @@ class EventHubService {
           status: statusWithTime,
           state: parsed.state,
           time: parsed.time,
+          sequenceNumber: parsed.sequenceNumber,
+          offset: parsed.offset,
         });
       } catch (err) {
         this.stats.errors++;
@@ -205,7 +211,10 @@ class EventHubService {
     const changes = []; // Will store actual changes to save
 
     // Step 4a: Check each alert for changes
-    for (const [alertId, { status, state, time }] of updates) {
+    for (const [
+      alertId,
+      { status, state, time, sequenceNumber, offset },
+    ] of updates) {
       // Try to get users from cache
       let users = this.cache.get(alertId);
 
@@ -217,6 +226,8 @@ class EventHubService {
             "Id",
             "Status",
             "State",
+            "LastSequenceNumber",
+            "LastEventOffset",
             "FirstName",
             "LastName",
             "EmailId",
@@ -235,6 +246,8 @@ class EventHubService {
           lastName: u.LastName,
           status: u.Status,
           state: u.State,
+          lastSequenceNumber: u.LastSequenceNumber || 0,
+          lastEventOffset: u.LastEventOffset,
           emailId: u.EmailId,
           carrierCode: u.CarrierCode,
           flightNumber: u.DepartureFlightNumber,
@@ -251,6 +264,13 @@ class EventHubService {
 
       // Step 4c: Find what changed
       for (const u of users) {
+        if (sequenceNumber <= (u.lastSequenceNumber || 0)) {
+          console.log(
+            `⏭️  Skipping old event for ${u.firstName} - Seq: ${sequenceNumber} vs Current: ${u.lastSequenceNumber}`
+          );
+          continue;
+        }
+
         // Compare old vs new values
         if (u.status !== status || u.state !== state) {
           // Log the change
@@ -259,7 +279,13 @@ class EventHubService {
           );
 
           // Add to changes list
-          changes.push({ id: u.id, status, state });
+          changes.push({
+            id: u.id,
+            status,
+            state,
+            sequenceNumber,
+            offset,
+          });
 
           // Send email notification
           EmailService.sendStatusUpdateEmail(
@@ -279,6 +305,8 @@ class EventHubService {
           // Update cache
           u.status = status;
           u.state = state;
+          u.lastSequenceNumber = sequenceNumber;
+          u.lastEventOffset = offset;
         }
       }
 
@@ -302,14 +330,21 @@ class EventHubService {
       // Run SQL query to update multiple records at once
       await sequelize.query(
         `UPDATE "MeetingUser" m 
-         SET "Status" = u.s, "State" = u.st, "ModifiedDate" = NOW()
-         FROM (SELECT * FROM UNNEST($1::int[], $2::text[], $3::text[])) AS u(id, s, st)
+         SET "Status" = u.s, 
+           "State" = u.st, 
+           "LastSequenceNumber" = u.seq,
+           "LastEventOffset" = u.off,
+           "ModifiedDate" = NOW()
+         FROM (SELECT * FROM UNNEST($1::int[], $2::text[], $3::text[], $4::bigint[], $5::text[])) 
+            AS u(id, s, st, seq, off)
          WHERE m."Id" = u.id`,
         {
           bind: [
             updates.map((u) => u.id), // Array of IDs
             updates.map((u) => u.status), // Array of statuses
             updates.map((u) => u.state), // Array of states
+            updates.map((u) => u.sequenceNumber),
+            updates.map((u) => u.offset),
           ],
           transaction: t,
         }

@@ -16,7 +16,6 @@ class EventHubUtils {
       typeof event.body === "string" ? JSON.parse(event.body) : event.body;
     const dep = raw.departure || raw.Departure;
     const times = dep?.times;
-
     const estimated = times?.estimated;
 
     return {
@@ -25,6 +24,9 @@ class EventHubUtils {
       state: raw.state || raw.State || null,
       status: estimated?.outGateTimeliness || "No Take Off Info",
       time: estimated?.outGateVariation || null,
+      sequenceNumber: event.sequenceNumber || 0,
+      offset: event.offset || null,
+      enqueuedTimeUtc: event.enqueuedTimeUtc || null,
     };
   }
 
