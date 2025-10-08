@@ -3,6 +3,7 @@ import MeetingUser from "../models/MeetingUser.js";
 import { sequelize } from "../config/database.js";
 import NodeCache from "node-cache";
 import EventHubUtils from "../utils/eventHub.utils.js";
+import EmailService from "./email.service.js";
 
 class EventHubService {
   constructor() {
@@ -90,7 +91,20 @@ class EventHubService {
         IsDeleted: false, // Not deleted
         IsActive: true, // Active
       },
-      attributes: ["Id", "AlertId", "Status", "State", "FirstName", "LastName"],
+      attributes: [
+        "Id",
+        "AlertId",
+        "Status",
+        "State",
+        "FirstName",
+        "LastName",
+        "EmailId",
+        "CarrierCode",
+        "DepartureFlightNumber",
+        "OriginAirport",
+        "DestinationAirport",
+        "DepartureDateTime",
+      ],
       raw: true,
     });
 
@@ -104,6 +118,12 @@ class EventHubService {
         lastName: u.LastName,
         status: u.Status,
         state: u.State,
+        emailId: u.EmailId,
+        carrierCode: u.CarrierCode,
+        flightNumber: u.DepartureFlightNumber,
+        originAirport: u.OriginAirport,
+        destinationAirport: u.DestinationAirport,
+        departureDateTime: u.DepartureDateTime,
       });
     }
 
@@ -154,17 +174,22 @@ class EventHubService {
         // Update stats
         this.stats.processed++;
 
+        // Format status with time
+        const statusWithTime = EventHubUtils.formatStatusWithTime(
+          parsed.status,
+          parsed.time
+        );
+
         // Log event received
         console.log(
-          `📥 Alert: ${parsed.alertId.slice(0, 8)}... | Status: ${
-            parsed.status
-          } | State: ${parsed.state}`
+          `📥 Alert: ${parsed.alertId} | Status: ${parsed.status} | State: ${parsed.state}`
         );
 
         // Store update for this alert
         updates.set(parsed.alertId, {
-          status: parsed.status,
+          status: statusWithTime,
           state: parsed.state,
+          time: parsed.time,
         });
       } catch (err) {
         this.stats.errors++;
@@ -180,7 +205,7 @@ class EventHubService {
     const changes = []; // Will store actual changes to save
 
     // Step 4a: Check each alert for changes
-    for (const [alertId, { status, state }] of updates) {
+    for (const [alertId, { status, state, time }] of updates) {
       // Try to get users from cache
       let users = this.cache.get(alertId);
 
@@ -188,7 +213,19 @@ class EventHubService {
       if (!users) {
         const dbUsers = await MeetingUser.findAll({
           where: { AlertId: alertId, IsDeleted: false, IsActive: true },
-          attributes: ["Id", "Status", "State", "FirstName", "LastName"],
+          attributes: [
+            "Id",
+            "Status",
+            "State",
+            "FirstName",
+            "LastName",
+            "EmailId",
+            "CarrierCode",
+            "DepartureFlightNumber",
+            "OriginAirport",
+            "DestinationAirport",
+            "DepartureDateTime",
+          ],
           raw: true,
         });
 
@@ -198,6 +235,12 @@ class EventHubService {
           lastName: u.LastName,
           status: u.Status,
           state: u.State,
+          emailId: u.EmailId,
+          carrierCode: u.CarrierCode,
+          flightNumber: u.DepartureFlightNumber,
+          originAirport: u.OriginAirport,
+          destinationAirport: u.DestinationAirport,
+          departureDateTime: u.DepartureDateTime,
         }));
 
         // Save in cache for next time
@@ -217,6 +260,21 @@ class EventHubService {
 
           // Add to changes list
           changes.push({ id: u.id, status, state });
+
+          // Send email notification
+          EmailService.sendStatusUpdateEmail(
+            {
+              EmailId: u.emailId,
+              FirstName: u.firstName,
+              LastName: u.lastName,
+              CarrierCode: u.carrierCode,
+              DepartureFlightNumber: u.flightNumber,
+              OriginAirport: u.originAirport,
+              DestinationAirport: u.destinationAirport,
+              DepartureDateTime: u.departureDateTime,
+            },
+            { status, state, time }
+          ).catch((err) => console.error("❌ Email error:", err.message));
 
           // Update cache
           u.status = status;

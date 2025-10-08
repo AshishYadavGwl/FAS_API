@@ -16,7 +16,10 @@ const DATE_FORMATS = [
 ];
 
 export function parseDateTime(dateStr) {
-  return dateStr ? moment(dateStr, DATE_FORMATS, true).toDate() : null;
+  if (!dateStr) return null;
+
+  // Remove timezone info if present, keep only date/time
+  return dateStr.replace(/[TZ]/g, " ").replace(/\+.*$/, "").trim();
 }
 
 // Case-insensitive LIKE helper

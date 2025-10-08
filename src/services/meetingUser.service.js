@@ -11,7 +11,8 @@ import {
   parseDateTime,
 } from "../utils/meetingUser.utils.js";
 import { sequelize } from "../config/database.js";
-import { createAlerts } from "./oagAlert.service.js";
+import { createAlerts, deleteChangedAlerts } from "./oagAlert.service.js";
+import EmailService from "./email.service.js";
 
 const meetingInclude = {
   model: Meeting,
@@ -48,6 +49,20 @@ class MeetingUserService {
 
       createAlerts(createdIds).catch((err) => {
         console.error("Alert creation error:", err);
+      });
+
+      // Send emails
+      created.forEach((user) => {
+        EmailService.sendAlertCreatedEmail({
+          emailId: user.EmailId,
+          firstName: user.FirstName,
+          lastName: user.LastName,
+          carrierCode: user.CarrierCode,
+          flightNumber: user.DepartureFlightNumber,
+          originAirport: user.OriginAirport,
+          destinationAirport: user.DestinationAirport,
+          departureDateTime: user.DepartureDateTime,
+        }).catch((err) => console.error("Email error:", err));
       });
 
       return created;
@@ -161,7 +176,13 @@ class MeetingUserService {
         const ids = toUpdate.map((u) => u.ID);
         const existing = await MeetingUser.findAll({
           where: { Id: ids, IsDeleted: false },
-          attributes: ["Id"],
+          attributes: [
+            "Id",
+            "AlertId",
+            "CarrierCode",
+            "DepartureFlightNumber",
+            "DepartureDateTime",
+          ],
           transaction: t,
           raw: true,
         });
@@ -174,6 +195,10 @@ class MeetingUserService {
           err.missingIds = missingIds;
           throw err;
         }
+
+        // Delete changed alerts BEFORE update
+        await deleteChangedAlerts(existing, toUpdate);
+
         // Step 2: Bulk update
         const d = {
           ids,
@@ -227,7 +252,7 @@ class MeetingUserService {
         );
       }
 
-      // Step 3: Bulk create (removed ArrivalFlightNumber)
+      // Step 3: Bulk create
       const created =
         toCreate.length > 0
           ? await MeetingUser.bulkCreate(
@@ -266,9 +291,14 @@ class MeetingUserService {
         where: { Id: updatedIds },
         attributes: [
           "Id",
+          "FirstName",
+          "LastName",
+          "EmailId",
           "CarrierCode",
           "DepartureFlightNumber",
           "DepartureDateTime",
+          "OriginAirport",
+          "DestinationAirport",
           "AlertId",
         ],
         raw: true,
@@ -277,6 +307,20 @@ class MeetingUserService {
       // Call alert creation
       createAlerts(users).catch((err) => {
         console.error("Alert update error:", err);
+      });
+
+      // Send emails to all users (both updated and created)
+      users.forEach((user) => {
+        EmailService.sendAlertCreatedEmail({
+          emailId: user.EmailId,
+          firstName: user.FirstName,
+          lastName: user.LastName,
+          carrierCode: user.CarrierCode,
+          flightNumber: user.DepartureFlightNumber,
+          originAirport: user.OriginAirport,
+          destinationAirport: user.DestinationAirport,
+          departureDateTime: user.DepartureDateTime,
+        }).catch((err) => console.error("Email error:", err));
       });
 
       return { updated: toUpdate.length, created: created.length };

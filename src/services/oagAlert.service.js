@@ -12,6 +12,7 @@ const oagClient = axios.create({
   },
 });
 
+// ✅ Create alerts - Simple check: AlertId exists ya nahi
 export async function createAlerts(usersData) {
   const results = { success: [], incomplete: [] };
 
@@ -22,50 +23,30 @@ export async function createAlerts(usersData) {
         ? OagUtils.formatDate(user.DepartureDateTime)
         : null;
 
-      // Invalid data - delete alert if exists
+      // Invalid data
       if (!isValid || !departureDate) {
-        if (user.AlertId?.trim())
-          await deleteAlert(user.AlertId).catch(() => {});
         results.incomplete.push(user.Id);
         return;
       }
 
-      let shouldCreateNew = true;
-
-      // Check if alert needs update
+      // ✅ Already has AlertId? Skip
       if (user.AlertId?.trim()) {
-        const oldUser = await MeetingUser.findByPk(user.Id, {
-          attributes: [
-            "CarrierCode",
-            "DepartureFlightNumber",
-            "DepartureDateTime",
-          ],
-          raw: true,
-        });
-
-        if (oldUser && !OagUtils.hasFlightDataChanged(oldUser, user)) {
-          results.success.push({ id: user.Id, alertId: user.AlertId });
-          shouldCreateNew = false;
-        } else {
-          await deleteAlert(user.AlertId).catch(() => {});
-        }
+        results.success.push({ id: user.Id, alertId: user.AlertId });
+        return;
       }
 
-      // Create new alert
-      if (shouldCreateNew) {
-        const payload = OagUtils.buildOagPayload(
-          user.CarrierCode,
-          user.DepartureFlightNumber,
-          departureDate
-        );
+      // ✅ Create new alert
+      const payload = OagUtils.buildOagPayload(
+        user.CarrierCode,
+        user.DepartureFlightNumber,
+        departureDate
+      );
 
-        const response = await oagClient.post("", payload);
-        const alertId =
-          response.data?.alertId ||
-          response.data?.data ||
-          response.data?.AlertId;
-        results.success.push({ id: user.Id, alertId });
-      }
+      const response = await oagClient.post("", payload);
+      const alertId =
+        response.data?.alertId || response.data?.data || response.data?.AlertId;
+
+      results.success.push({ id: user.Id, alertId });
     } catch (error) {
       const duplicateAlertId = OagUtils.extractAlertIdFromError(error);
       if (duplicateAlertId) {
@@ -86,7 +67,48 @@ export async function createAlerts(usersData) {
   };
 }
 
-// Delete alert
+// ✅ Delete changed alerts - Compare & delete
+export async function deleteChangedAlerts(existingUsers, newUsersData) {
+  const alertsToDelete = [];
+
+  newUsersData.forEach((newData) => {
+    const oldData = existingUsers.find((e) => e.Id === newData.ID);
+    if (!oldData?.AlertId) return;
+
+    const oldDate = new Date(oldData.DepartureDateTime);
+    const newDate = new Date(newData.DepartureDateTime);
+
+    const hasChanged =
+      oldData.CarrierCode !== newData.CarrierCode ||
+      oldData.DepartureFlightNumber !== String(newData.DepartureFlightNumber) ||
+      Math.abs(oldDate - newDate) > 60000;
+
+    if (hasChanged) {
+      alertsToDelete.push({ alertId: oldData.AlertId, userId: oldData.Id });
+    }
+  });
+
+  if (alertsToDelete.length === 0) return;
+
+  console.log(`🗑️ Deleting ${alertsToDelete.length} changed alerts`);
+
+  // Delete from OAG (parallel)
+  const deletePromises = alertsToDelete.map(({ alertId }) =>
+    deleteAlert(alertId).catch((err) =>
+      console.error(`Delete alert ${alertId} failed:`, err.message)
+    )
+  );
+  await Promise.allSettled(deletePromises);
+
+  // Clear AlertId in DB (bulk)
+  const userIds = alertsToDelete.map((a) => a.userId);
+  await MeetingUser.update(
+    { AlertId: null, ModifiedDate: new Date() },
+    { where: { Id: userIds } }
+  );
+}
+
+// Delete alert from OAG
 async function deleteAlert(alertId) {
   try {
     const deleteUrl = `https://api.oag.com/flight-info-alerts/alerts/${alertId}?version=v1`;
@@ -104,7 +126,7 @@ async function deleteAlert(alertId) {
   }
 }
 
-// Bulk update DB with UNNEST
+// Bulk update DB
 async function bulkUpdateMeetingUsers(results) {
   const t = await sequelize.transaction();
 

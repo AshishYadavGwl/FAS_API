@@ -31,6 +31,21 @@ class EventHubUtils {
       time: actual?.outGateVariation || estimated?.outGateVariation || null,
     };
   }
+
+  // Converts time variation to readable format and appends to status
+  static formatStatusWithTime = (status, time) => {
+    if (!time || time === "00:00:00") return status;
+
+    const match = time.match(/([+-])?(\d{2}):(\d{2}):(\d{2})/);
+    if (!match) return status;
+
+    const [, sign, hours, minutes] = match;
+    const totalMinutes = parseInt(hours) * 60 + parseInt(minutes);
+
+    if (totalMinutes === 0) return status;
+
+    return `${status} by ${totalMinutes} min`;
+  };
 }
 
 export default EventHubUtils;

@@ -1,10 +1,10 @@
 import sgMail from "@sendgrid/mail";
 import TemplateService from "./template.service.js";
+import EmailUtils from "../utils/email.utils.js";
 
 class EmailService {
   static initialized = false;
 
-  // Initialize SendGrid API once
   static initialize() {
     if (!this.initialized) {
       sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -12,52 +12,91 @@ class EmailService {
     }
   }
 
-  // Base method for sending emails
+  // Send Mail
   static async sendEmail(to, subject, template, variables) {
     this.initialize();
+    const html = await TemplateService.processTemplate(template, {
+      ...variables,
+      currentYear: new Date().getFullYear(),
+    });
 
-    try {
-      // Process HTML template with variables
-      const html = await TemplateService.processTemplate(template, {
-        ...variables,
-        currentYear: new Date().getFullYear(),
-        logoURL: `${
-          process.env.BASE_URL || "http://localhost:3000"
-        }/images/logo-with-text.png`,
-      });
-
-      // Send email via SendGrid
-      await sgMail.send({
-        to,
-        from: {
-          email: process.env.EMAIL_FROM,
-          name: process.env.EMAIL_FROM_NAME,
-        },
-        subject,
-        html,
-      });
-
-      return true;
-    } catch (error) {
-      throw error;
-    }
+    await sgMail.send({
+      to,
+      from: {
+        email: process.env.EMAIL_FROM,
+        name: process.env.EMAIL_FROM_NAME,
+      },
+      subject,
+      html,
+    });
   }
 
-  // Send OTP verification email
+  // Alert created email
+  static async sendAlertCreatedEmail(userData) {
+    const flightId = EmailUtils.getFlightId(
+      userData.carrierCode,
+      userData.flightNumber
+    );
+
+    await this.sendEmail(
+      userData.emailId,
+      `✈️ Flight Alert - ${flightId}`,
+      "alertCreatedTemplate.html",
+      {
+        fullName: EmailUtils.getFullName(userData.firstName, userData.lastName),
+        carrierCode: userData.carrierCode,
+        flightNumber: userData.flightNumber,
+        originAirport: userData.originAirport,
+        destinationAirport: userData.destinationAirport,
+        departureDateTime: EmailUtils.formatDateTime(
+          userData.departureDateTime
+        ),
+      }
+    );
+  }
+
+  // Status update email
+  static async sendStatusUpdateEmail(userData, statusData) {
+    const flightId = EmailUtils.getFlightId(
+      userData.CarrierCode,
+      userData.DepartureFlightNumber
+    );
+
+    await this.sendEmail(
+      userData.EmailId,
+      `Flight Update: ${flightId} - ${statusData.status}`,
+      "flightStatusUpdateTemplate.html",
+      {
+        fullName: EmailUtils.getFullName(userData.FirstName, userData.LastName),
+        carrierCode: userData.CarrierCode,
+        flightNumber: userData.DepartureFlightNumber,
+        originAirport: userData.OriginAirport,
+        destinationAirport: userData.DestinationAirport,
+        status: statusData.status,
+        state: statusData.state,
+        timeVariation: statusData.time,
+        departureDateTime: EmailUtils.formatDateTime(
+          userData.DepartureDateTime
+        ),
+      }
+    );
+  }
+
+  // OTP email
   static async sendOtpEmail(emailID, otp, userName) {
-    return this.sendEmail(
+    await this.sendEmail(
       emailID,
-      "Password Reset Verification Code - P Value",
+      "Password Reset Code - P Value",
       "otpVerificationTemplate.html",
       { fullName: userName, otp }
     );
   }
 
-  // Send password reset link email
+  // Reset password email
   static async sendResetPasswordEmail(emailID, resetLink, userName) {
-    return this.sendEmail(
+    await this.sendEmail(
       emailID,
-      "Password Reset Request - P Value",
+      "Password Reset - P Value",
       "resetPasswordTemplate.html",
       { fullName: userName, resetLink }
     );
