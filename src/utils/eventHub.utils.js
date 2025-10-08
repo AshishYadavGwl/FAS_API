@@ -17,18 +17,14 @@ class EventHubUtils {
     const dep = raw.departure || raw.Departure;
     const times = dep?.times;
 
-    const actual = times?.actual;
     const estimated = times?.estimated;
 
     return {
       alertId: raw.alertId || raw.AlertId,
       messageId: raw.messageId || raw.MessageId,
       state: raw.state || raw.State || null,
-      status:
-        actual?.outGateTimeliness ||
-        estimated?.outGateTimeliness ||
-        "No Take Off Info",
-      time: actual?.outGateVariation || estimated?.outGateVariation || null,
+      status: estimated?.outGateTimeliness || "No Take Off Info",
+      time: estimated?.outGateVariation || null,
     };
   }
 
