@@ -1,3 +1,4 @@
+// AY
 import { Op } from "sequelize";
 import MeetingUser from "../models/MeetingUser.js";
 import Meeting from "../models/Meeting.js";
@@ -8,8 +9,9 @@ import {
   buildSortOrder,
   buildMeetingInclude,
   parseDateTime,
-} from "../utils/meetingUserUtils.js";
+} from "../utils/meetingUser.utils.js";
 import { sequelize } from "../config/database.js";
+import { createAlerts } from "./oagAlert.service.js";
 
 const meetingInclude = {
   model: Meeting,
@@ -20,7 +22,6 @@ const meetingInclude = {
 
 class MeetingUserService {
   // Create bulk meeting user
-  // AY
   static async createMeetingUsers(usersData) {
     try {
       const processedData = usersData.map((user) => ({
@@ -32,7 +33,24 @@ class MeetingUserService {
         CreateDate: new Date(),
       }));
 
-      return await MeetingUser.bulkCreate(processedData, { validate: true });
+      const created = await MeetingUser.bulkCreate(processedData, {
+        validate: true,
+      });
+
+      // Create Alert
+      const createdIds = created.map((u) => ({
+        Id: u.Id,
+        CarrierCode: u.CarrierCode,
+        DepartureFlightNumber: u.DepartureFlightNumber,
+        DepartureDateTime: u.DepartureDateTime,
+        AlertId: null,
+      }));
+
+      createAlerts(createdIds).catch((err) => {
+        console.error("Alert creation error:", err);
+      });
+
+      return created;
     } catch (error) {
       console.error("Service createMeetingUsers error:", error);
       throw error;
@@ -40,7 +58,6 @@ class MeetingUserService {
   }
 
   // Get all meeting user paginated,filter,search,sort
-  // AY
   static async getPaginatedMeetingUsers({
     page,
     pageSize,
@@ -108,7 +125,6 @@ class MeetingUserService {
   }
 
   // Get meeting user by id
-  // AY
   static async getMeetingUserById(id) {
     return await MeetingUser.findByPk(id, {
       where: { IsDeleted: false },
@@ -117,7 +133,6 @@ class MeetingUserService {
   }
 
   // Get meeting user by meeting id
-  // AY
   static async getMeetingUsersByMeetingId(meetingId) {
     const where = {
       IsDeleted: false,
@@ -134,7 +149,6 @@ class MeetingUserService {
   }
 
   // Update meeting user
-  // AY
   static async updateMeetingUser(meetingId, usersData) {
     const t = await sequelize.transaction();
 
@@ -241,6 +255,30 @@ class MeetingUserService {
           : [];
 
       await t.commit();
+
+      // Fetch updated users data for alert creation
+      const updatedIds = [
+        ...toUpdate.map((u) => u.ID),
+        ...created.map((u) => u.Id),
+      ];
+
+      const users = await MeetingUser.findAll({
+        where: { Id: updatedIds },
+        attributes: [
+          "Id",
+          "CarrierCode",
+          "DepartureFlightNumber",
+          "DepartureDateTime",
+          "AlertId",
+        ],
+        raw: true,
+      });
+
+      // Call alert creation
+      createAlerts(users).catch((err) => {
+        console.error("Alert update error:", err);
+      });
+
       return { updated: toUpdate.length, created: created.length };
     } catch (error) {
       await t.rollback();

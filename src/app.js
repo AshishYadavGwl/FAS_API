@@ -4,9 +4,10 @@ import helmet from "helmet";
 import morgan from "morgan";
 import compression from "compression";
 import path from "path";
-import routes from "./routes/index.js";
+import routes from "./routes/index.routes.js";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import eventHubService from "./services/eventHub.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -40,6 +41,12 @@ app.get("/", (req, res) => res.send("API Running"));
 
 // API routes
 app.use("/api", routes);
+
+eventHubService.start();
+process.on("SIGTERM", async () => {
+  await eventHubService.stop();
+  process.exit(0);
+});
 
 // 404 handler
 app.all("/*splat", (req, res) => {

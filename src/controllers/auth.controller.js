@@ -3,14 +3,14 @@ import crypto from "node:crypto";
 import { sequelize } from "../config/database.js";
 import User from "../models/User.js";
 import OtpVerification from "../models/OtpVerification.js";
-import AuthService from "../services/authService.js";
-import EmailService from "../services/emailService.js";
-import ApiResponse from "../utils/response.js";
+import AuthService from "../services/auth.service.js";
+import EmailService from "../services/email.service.js";
+import ApiResponse from "../utils/response.utils.js";
 import {
   validateLogin,
   validateRegister,
   validateResetPassword,
-} from "../utils/authUtils.js";
+} from "../utils/auth.utils.js";
 
 class AuthController {
   // Login user

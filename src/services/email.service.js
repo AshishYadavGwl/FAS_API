@@ -1,5 +1,5 @@
 import sgMail from "@sendgrid/mail";
-import TemplateService from "./templateService.js";
+import TemplateService from "./template.service.js";
 
 class EmailService {
   static initialized = false;

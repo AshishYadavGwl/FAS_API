@@ -1,5 +1,5 @@
-import MeetingService from "../services/meetingService.js";
-import ApiResponse from "../utils/response.js";
+import MeetingService from "../services/meeting.service.js";
+import ApiResponse from "../utils/response.utils.js";
 
 class MeetingController {
   // Create meeting

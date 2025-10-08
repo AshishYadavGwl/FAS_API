@@ -1,6 +1,6 @@
-import MeetingUserService from "../services/meetingUserService.js";
-import { isValidateMeetingUser } from "../utils/meetingUserUtils.js";
-import ApiResponse from "../utils/response.js";
+import MeetingUserService from "../services/meetingUser.service.js";
+import { isValidateMeetingUser } from "../utils/meetingUser.utils.js";
+import ApiResponse from "../utils/response.utils.js";
 
 class MeetingUserController {
   // Create bulk meeting user

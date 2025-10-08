@@ -1,5 +1,5 @@
 import { Router } from "express";
-import MeetingUserController from "../controllers/meetingUserController.js";
+import MeetingUserController from "../controllers/meetingUser.controller.js";
 
 const router = Router();
 
