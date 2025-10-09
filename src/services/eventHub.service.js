@@ -4,6 +4,7 @@ import { sequelize } from "../config/database.js";
 import NodeCache from "node-cache";
 import EventHubUtils from "../utils/eventHub.utils.js";
 import EmailService from "./email.service.js";
+import WebSocketService from "./webSocket.service.js";
 
 class EventHubService {
   constructor() {
@@ -236,6 +237,7 @@ class EventHubService {
             "OriginAirport",
             "DestinationAirport",
             "DepartureDateTime",
+            "MeetingID",
           ],
           raw: true,
         });
@@ -254,6 +256,7 @@ class EventHubService {
           originAirport: u.OriginAirport,
           destinationAirport: u.DestinationAirport,
           departureDateTime: u.DepartureDateTime,
+          meetingId: u.MeetingID,
         }));
 
         // Save in cache for next time
@@ -288,19 +291,22 @@ class EventHubService {
           });
 
           // Send email notification
-          EmailService.sendStatusUpdateEmail(
-            {
-              EmailId: u.emailId,
-              FirstName: u.firstName,
-              LastName: u.lastName,
-              CarrierCode: u.carrierCode,
-              DepartureFlightNumber: u.flightNumber,
-              OriginAirport: u.originAirport,
-              DestinationAirport: u.destinationAirport,
-              DepartureDateTime: u.departureDateTime,
-            },
-            { status, state, time }
-          ).catch((err) => console.error("❌ Email error:", err.message));
+          // EmailService.sendStatusUpdateEmail(
+          //   {
+          //     EmailId: u.emailId,
+          //     FirstName: u.firstName,
+          //     LastName: u.lastName,
+          //     CarrierCode: u.carrierCode,
+          //     DepartureFlightNumber: u.flightNumber,
+          //     OriginAirport: u.originAirport,
+          //     DestinationAirport: u.destinationAirport,
+          //     DepartureDateTime: u.departureDateTime,
+          //   },
+          //   { status, state, time }
+          // ).catch((err) => console.error("❌ Email error:", err.message));
+
+          // WebSocket broadcast
+          WebSocketService.broadcastFlightUpdate(u, alertId, status, state);
 
           // Update cache
           u.status = status;
