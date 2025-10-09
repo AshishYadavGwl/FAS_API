@@ -291,19 +291,19 @@ class EventHubService {
           });
 
           // Send email notification
-          // EmailService.sendStatusUpdateEmail(
-          //   {
-          //     EmailId: u.emailId,
-          //     FirstName: u.firstName,
-          //     LastName: u.lastName,
-          //     CarrierCode: u.carrierCode,
-          //     DepartureFlightNumber: u.flightNumber,
-          //     OriginAirport: u.originAirport,
-          //     DestinationAirport: u.destinationAirport,
-          //     DepartureDateTime: u.departureDateTime,
-          //   },
-          //   { status, state, time }
-          // ).catch((err) => console.error("❌ Email error:", err.message));
+          EmailService.sendStatusUpdateEmail(
+            {
+              EmailId: u.emailId,
+              FirstName: u.firstName,
+              LastName: u.lastName,
+              CarrierCode: u.carrierCode,
+              DepartureFlightNumber: u.flightNumber,
+              OriginAirport: u.originAirport,
+              DestinationAirport: u.destinationAirport,
+              DepartureDateTime: u.departureDateTime,
+            },
+            { status, state, time }
+          ).catch((err) => console.error("❌ Email error:", err.message));
 
           // WebSocket broadcast
           WebSocketService.broadcastFlightUpdate(u, alertId, status, state);

@@ -31,7 +31,7 @@ const startServer = async () => {
     process.on("SIGINT", async () => {
       console.log("🛑 SIGINT received, shutting down...");
       await eventHubService.stop();
-      WebSocketService.shutdown();
+      webSocketService.shutdown();
       server.close(() => {
         console.log("✅ Server closed");
         process.exit(0);
