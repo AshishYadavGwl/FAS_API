@@ -12,4 +12,6 @@ router.get("/attendee/:id", NotificationAlertController.getByAttendeeId);
 // Fetch alerts by Attendee Type
 router.get("/type/:type", NotificationAlertController.getByAttendeeType);
 
+router.post("/alerts/save-or-update", NotificationAlertController.saveOrUpdate)
+
 export default router;
