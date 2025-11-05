@@ -1,8 +1,15 @@
 import express from "express";
-import { getNotificationAlertById } from "../controllers/notificationAlertController.js";
+import NotificationAlertController from "../controllers/notificationAlertController.js";
 
 const router = express.Router();
 
-router.get("/:id", getNotificationAlertById);
+// Fetch alerts by Meeting ID
+router.get("/meeting/:id", NotificationAlertController.getByMeetingId);
+
+// Fetch alerts by Attendee ID
+router.get("/attendee/:id", NotificationAlertController.getByAttendeeId);
+
+// Fetch alerts by Attendee Type
+router.get("/type/:type", NotificationAlertController.getByAttendeeType);
 
 export default router;
